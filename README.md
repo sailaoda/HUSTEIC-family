@@ -68,7 +68,7 @@
 
 &nbsp;
 
-### 项目原因:
+## 项目原因:
 
 受[浙江大学](https://github.com/QSCTech/zju-icicles)、[清华大学](https://github.com/Salensoft/thu-cst-cracker)、[南京大学](https://github.com/ZhangYikaii/NJUCS-Course-Material.git)相关项目启发, 创立了本项目.
 
