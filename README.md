@@ -92,6 +92,7 @@
 >
 > <p align="right">来自浙江大学课程攻略共享计划</p>
 
+
 &nbsp;
 
 ## 致谢
@@ -145,9 +146,7 @@
 - [husteic_digital](https://github.com/sailaoda/husteic_digital.git)：华中科技大学电信学院数电课实验报告、代码、vivado文件。（个人版）3-8线译码器，步进器，数字钟，FPGA组合逻辑设计等。
 
 - [hust_Software_radio](https://github.com/sailaoda/hust_Software_radio.git)：华中科技大学电信学院软件无线电MATLAB实验代码、实验报告、PPT学习资料等。（个人版）16QAM，OFDM，DDC，无线电信道化接收机等。
->>>>>>> 8be02ffbb88a392f0b78d6e3ff38cea962c42916
 
-- [hust_Software_radio](https://github.com/sailaoda/hust_Software_radio.git)：华中科技大学电信学院软件无线电MATLAB实验代码、实验报告、PPT学习资料等。（个人版）16QAM，OFDM，DDC，无线电信道化接收机等。
 
 
 
