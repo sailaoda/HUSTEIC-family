@@ -1,0 +1,68 @@
+#include "xil_io.h"
+#include "stdio.h"
+#include "xintc_l.h"
+#include "xgpio_l.h"
+#include "xuartlite_l.h"
+void UART_SR();
+void BtnHandler();
+void My_ISR() __attribute__ ((interrupt_handler));
+int main()
+{
+	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_TRI_OFFSET,0x1f); //设定BUTTON为输入方式
+	Xil_Out16(XPAR_GPIO_0_BASEADDR+XGPIO_TRI2_OFFSET,0x0); //LED灯输出
+	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_IER_OFFSET,XGPIO_IR_CH1_MASK); //通道1允许中断
+	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_GIE_OFFSET,XGPIO_GIE_GINTR_ENABLE_MASK); //允许GPIO中断输出
+	Xil_Out32(XPAR_AXI_UARTLITE_3_BASEADDR+XUL_CONTROL_REG_OFFSET,XUL_CR_ENABLE_INTR|XUL_CR_FIFO_RX_RESET|XUL_CR_FIFO_TX_RESET);//使能中断，清除RX，TX寄存器
+	Xil_Out32(XPAR_AXI_INTC_0_BASEADDR+XIN_IER_OFFSET,XPAR_AXI_GPIO_2_IP2INTC_IRPT_MASK|XPAR_AXI_UARTLITE_3_INTERRUPT_MASK);//对中断控制器进行中断源使能
+	Xil_Out32(XPAR_AXI_INTC_0_BASEADDR+XIN_MER_OFFSET,XIN_INT_MASTER_ENABLE_MASK|XIN_INT_HARDWARE_ENABLE_MASK);
+	microblaze_enable_interrupts();//允许处理器处理中断
+	return 0;
+}
+void My_ISR()
+{
+	int status;
+	status=Xil_In32(XPAR_AXI_INTC_0_BASEADDR+XIN_ISR_OFFSET);//读取ISR
+	xil_printf("0x%x\n",status);
+	if((status&XPAR_AXI_UARTLITE_3_INTERRUPT_MASK)==XPAR_AXI_UARTLITE_3_INTERRUPT_MASK)
+		{
+
+		UART_SR();
+		}
+	else if((status&XPAR_AXI_GPIO_2_IP2INTC_IRPT_MASK)==XPAR_AXI_GPIO_2_IP2INTC_IRPT_MASK)
+			BtnHandler(); //调用按键中断
+	Xil_Out32(XPAR_AXI_INTC_0_BASEADDR+XIN_IAR_OFFSET,status);//写IAR
+}
+void UART_SR()
+{
+    	Xil_Out16(XPAR_GPIO_0_BASEADDR+XGPIO_DATA2_OFFSET,Xil_In32(XPAR_AXI_UARTLITE_3_BASEADDR+XUL_RX_FIFO_OFFSET));
+}
+void BtnHandler()
+{
+	unsigned short btncode;
+	btncode=Xil_In8(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_DATA_OFFSET)&0x1f;
+	while((Xil_In32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_DATA_OFFSET)&0x1f)!=0)
+	{
+	       xil_printf("The pushed button's code is 0x%x\n",btncode);//打印输入的按键序号
+	}
+	switch(btncode)
+	{
+		case 0x1:
+			Xil_Out32(XPAR_AXI_UARTLITE_3_BASEADDR+XUL_TX_FIFO_OFFSET,btncode);
+			break;
+	    case 0x2:
+	    	Xil_Out32(XPAR_AXI_UARTLITE_3_BASEADDR+XUL_TX_FIFO_OFFSET,btncode);
+	    	break;
+	    case 0x4:
+	    	Xil_Out32(XPAR_AXI_UARTLITE_3_BASEADDR+XUL_TX_FIFO_OFFSET,btncode);
+	    	break;
+	    case 0x8:
+	       	Xil_Out32(XPAR_AXI_UARTLITE_3_BASEADDR+XUL_TX_FIFO_OFFSET,btncode);
+	       	break;
+	    case 0x10:
+	       	Xil_Out32(XPAR_AXI_UARTLITE_3_BASEADDR+XUL_TX_FIFO_OFFSET,btncode);
+	       	break;
+	    default:
+	        break;
+	       }
+	       	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_ISR_OFFSET,Xil_In32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_ISR_OFFSET)); //清除中断
+}

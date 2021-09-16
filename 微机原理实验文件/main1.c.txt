@@ -1,0 +1,89 @@
+# include "stdio.h"
+# include "xil_io.h"
+# include "xgpio_l.h"
+
+unsigned long resault;
+
+void Led(unsigned short regs){
+	Xil_Out16(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_TRI2_OFFSET,0X0);
+	Xil_Out16(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_DATA2_OFFSET,regs);
+}
+
+
+int main()
+{
+	char button;	//按键
+	unsigned long last_sw1,current_sw1,last_sw2,current_sw2;	//开关状态和显示状态
+
+	Xil_Out16(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_TRI_OFFSET,0Xffff);	//GPIO_0的通道1做输入，接入独立开关
+	Xil_Out8(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_TRI_OFFSET,0X1f);		//GPIO_2的通道1低5位做输入，接入按键
+
+	//按键查询的循环
+	while(1)
+	{
+		while( (Xil_In8(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_DATA_OFFSET) & 0X1f) != 0)	//当有按键按下，进入循环。干什么呢？
+			{
+				button = Xil_In8(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_DATA_OFFSET) & 0X1f;	//按键码赋值给变量button，button是GPIO输出的5位二进制数
+				while((Xil_In8(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_DATA_OFFSET) & 0X1f) != 0);	//等待按键松开
+				xil_printf("The push button code is 0x%x\n",button);
+
+
+				//接着要查询是哪个按键，以及做什么运算
+
+				//如果是BNTC按下了，要读入开关值并且将16进制数显示到LED灯上
+				switch(button)
+				{
+
+					case 0x1:{
+						last_sw1=current_sw1;
+						current_sw1 = Xil_In16(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_DATA_OFFSET)&0xffff;	//从GPIO0的1通道输入信号，并且做与，赋值给c_sw
+						if(last_sw1!=current_sw1)
+						{
+							xil_printf("The switch1's code is 0x%4x\n",current_sw1);
+							resault = current_sw1;
+
+						}
+						else
+							xil_printf("Please change the switch.\n");
+						break;
+						}
+
+					case 0x8:{
+						last_sw2=current_sw2;
+						current_sw2 = Xil_In16(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_DATA_OFFSET)&0xffff;	//从GPIO0的1通道输入信号，并且做与，赋值给c_sw
+						if(last_sw2!=current_sw2)
+						{
+							xil_printf("The switch2's code is 0x%4x\n",current_sw2);
+							resault = current_sw2;
+
+						}
+
+						else
+							xil_printf("Please change the switch.\n");
+						//然后需要将current_sw的值显示到数码管上
+						break;
+						}
+
+					case 0x2:{
+						resault = current_sw1+current_sw2;
+						xil_printf("The sum is 0x%x\n",resault);
+
+						break;
+						}
+
+					case 0x10:{
+						resault = current_sw1*current_sw2;
+						xil_printf("The mul is 0x%x\n",resault);
+						break;
+						}
+
+					default:{
+						xil_printf("Button error,please check your hand!\n");
+						break;
+						}
+				}
+			}
+		//如果没有按键就保持LED灯在上一个出现的状态。
+		Led(resault);
+	}
+}

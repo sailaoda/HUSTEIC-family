@@ -1,0 +1,37 @@
+################# Data segment #####################
+.data
+z:.space 200
+str1:.asciiz "\nZ["
+str2:.asciiz "]="
+################# Code segment #####################
+.text
+main:               # K $s0;Y $s1;Z $s2;$t2 zk的地址
+addi $s1,$0,56        # y=56 
+add  $s0,$0,$0       # k=0
+la $s2,z              # z的首地址
+loop: 
+beq $s0,50,exit        # k=50则退出
+sll $t1,$s0,2           #z的偏移地址
+add $t2,$t1,$s2        # zk的物理地址
+srl $t3,$s0,2
+addi $t3,$t3,210
+sll $t3,$t3,4        
+sub $t3,$s1,$t3         #计算结果存入$t3
+sw $t3,0($t2)           #结果存入内存
+li $v0,4
+la $a0,str1
+syscall
+li $v0,1
+add $a0,$0,$s0       #显示K
+syscall
+li $v0,4
+la $a0,str2
+syscall
+li $v0,1
+lw $a0,0($t2)        #显示Z【k】
+syscall
+addi $s0,$s0,1       #K+1
+j loop       
+exit:
+li $v0,10
+syscall

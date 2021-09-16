@@ -1,0 +1,125 @@
+#include "stdio.h"
+#include "xil_io.h"
+#include "xgpio_l.h"
+#include "xtmrctr_l.h"
+#include "xintc_l.h"
+#define RESET_VALUE	 10000
+void TimerHandler();//定时器中断事物处理函数
+void SwitchHandler();//开关中断事物处理函数
+void ButtonHandler();//按键中断事物处理函数
+void My_ISR() __attribute__ ((interrupt_handler)); //总中断服务程序
+unsigned short segcode[16]={0x0c0,0x0f9,0x0a4,0x0b0,0x099,0x092,0x082,0x0f8,0x80,0x09,0x088,0x083,0x0c6,0x0a1,0x086,0x08e};
+unsigned short seg[8],num[2];
+unsigned int sw_pos,button,j=0;
+int i;
+short pos=0x1;
+unsigned short last_sw = 0,current_sw = 0;
+int main()
+{
+	Xil_Out16(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_TRI_OFFSET,0xffff); //开关输入
+	Xil_Out8(XPAR_AXI_GPIO_1_BASEADDR+XGPIO_TRI_OFFSET,0x0);
+	Xil_Out8(XPAR_AXI_GPIO_1_BASEADDR+XGPIO_TRI2_OFFSET,0x0); //七段数码管输出
+	Xil_Out8(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_TRI_OFFSET,0x1f); //按键输入
+	Xil_Out32(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_ISR_OFFSET,0x1);//清除GPIO_0的中断状态
+	Xil_Out32(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_IER_OFFSET,XGPIO_IR_CH1_MASK);//使能通道1中断
+	Xil_Out32(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_GIE_OFFSET,XGPIO_GIE_GINTR_ENABLE_MASK);//写GPIO_0 GIER开放中断
+	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_ISR_OFFSET,0x1);//清除GPIO_2的中断状态
+	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_IER_OFFSET,XGPIO_IR_CH1_MASK);//使能通道1中断
+	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_GIE_OFFSET,XGPIO_GIE_GINTR_ENABLE_MASK);//写GPIO_2 GIER开放中断
+	Xil_Out32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET,
+	Xil_In32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET)&~XTC_CSR_ENABLE_TMR_MASK);//T0写TCSR，停止计时
+	Xil_Out32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TLR_OFFSET,RESET_VALUE);//T0写TLR，预置计数初值
+	Xil_Out32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET,Xil_In32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET)|XTC_CSR_LOAD_MASK);//T0装载计数初值
+	Xil_Out32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET,
+					(Xil_In32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET)&~XTC_CSR_LOAD_MASK)\
+					|XTC_CSR_ENABLE_TMR_MASK|XTC_CSR_AUTO_RELOAD_MASK|XTC_CSR_ENABLE_INT_MASK|XTC_CSR_DOWN_COUNT_MASK);//T0开始计时运行，自动装载，允许中断，减计数
+	Xil_Out32(XPAR_AXI_INTC_0_BASEADDR+XIN_IER_OFFSET,XPAR_AXI_GPIO_0_IP2INTC_IRPT_MASK|XPAR_AXI_GPIO_2_IP2INTC_IRPT_MASK|XPAR_AXI_TIMER_0_INTERRUPT_MASK); //开放AXI_INTC中断
+	Xil_Out32(XPAR_AXI_INTC_0_BASEADDR+XIN_MER_OFFSET,XIN_INT_MASTER_ENABLE_MASK|XIN_INT_HARDWARE_ENABLE_MASK); //使能硬件中断并允许产生中断请求
+	microblaze_enable_interrupts();//使能微处理器中断
+	return 0;
+}
+void My_ISR()//总中断服务程序
+{
+	int status;
+	status=Xil_In32(XPAR_AXI_INTC_0_BASEADDR+XIN_ISR_OFFSET);//读取ISR
+	if((status&XPAR_AXI_GPIO_0_IP2INTC_IRPT_MASK)==XPAR_AXI_GPIO_0_IP2INTC_IRPT_MASK) //若GPIO_0产生中断
+		SwitchHandler();//调用开关中断事物处理函数
+	if((status&XPAR_AXI_GPIO_2_IP2INTC_IRPT_MASK)==XPAR_AXI_GPIO_2_IP2INTC_IRPT_MASK) //若GPIO_2产生中断
+		ButtonHandler();//调用按键中断事物处理函数
+	if((status&XPAR_AXI_TIMER_0_INTERRUPT_MASK)==XPAR_AXI_TIMER_0_INTERRUPT_MASK) //若定时器产生中断
+		TimerHandler();//调用定时器中断事物处理函数
+	Xil_Out32(XPAR_AXI_INTC_0_BASEADDR+XIN_IAR_OFFSET,status);//写IAR清除中断状态
+}
+
+void SwitchHandler()//开关中断事物处理函数
+{
+	last_sw=current_sw;
+	current_sw=Xil_In16(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_DATA_OFFSET)&0xffff; //更新开关的值
+	if (last_sw!=current_sw) //若开关的值发生改变
+		xil_printf("The switches'code is 0x%4x\n",current_sw); //显示当前16进制数
+	Xil_Out32(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_ISR_OFFSET,Xil_In32(XPAR_AXI_GPIO_0_BASEADDR+XGPIO_ISR_OFFSET)); //清除GPIO_0的中断请求
+}
+void ButtonHandler()//按键中断事物处理函数
+{
+	button=Xil_In8(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_DATA_OFFSET)&0x1f; //读取按键
+	while((Xil_In8(XPAR_GPIO_2_BASEADDR+XGPIO_DATA_OFFSET)&0x1f)!=0);
+	if (button==0x01) //C
+	{
+		xil_printf("The buttonC is pushed\n");
+		num[0] = 7;
+		sw_pos = 0x01;
+		for(i=0;i<8;i++)
+		{
+			seg[i]=((current_sw>>i)&sw_pos)?segcode[1]:segcode[0];
+			xil_printf("seg[%d]= 0x%x\n",i,seg[i]);
+
+		}
+	}
+
+	else if (button==0x02) //U
+	{
+		xil_printf("The buttonU is pushed\n");
+		num[0] = 3;
+		sw_pos = 0xf;
+		for(i=0;i<4;i++)
+		{
+			seg[i] = segcode[sw_pos&(current_sw>>(4*i))];
+			xil_printf("seg[%d]= 0x%x\n",i,seg[i]);
+		}
+	}
+	else if(button == 0x10)//D
+	{
+		int m;
+		xil_printf("The buttonD is pushed\n");
+		num[0] = 4;
+		m=1;
+		for(i=0;i<5;i++)
+		{
+			seg[i] = segcode[(current_sw/m)%10];
+			xil_printf("seg[%d]= 0x%x\n",i,seg[i]);
+			m=m*10;
+		}
+		xil_printf("10^%d= 0x%x\n",10^i,seg[i]);
+		xil_printf("seg[%d]= 0x%x\n",i,seg[i]);
+	}
+	else
+	{
+		xil_printf("no available button\n");
+	}
+	Xil_Out32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_ISR_OFFSET,
+Xil_In32(XPAR_AXI_GPIO_2_BASEADDR+XGPIO_ISR_OFFSET)); //清除GPIO_2的中断请求
+}
+void TimerHandler()//定时器中断事物处理函数
+{
+	Xil_Out32(XPAR_AXI_GPIO_1_BASEADDR+XGPIO_DATA2_OFFSET,seg[j]);
+	Xil_Out32(XPAR_AXI_GPIO_1_BASEADDR+XGPIO_DATA_OFFSET,~pos);
+	pos=pos<<1;
+	j++;
+	if(j>num[0])
+	{
+		j=0;
+		pos=0x1;
+	}
+	Xil_Out32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET,Xil_In32(XPAR_AXI_TIMER_0_BASEADDR+XTC_TCSR_OFFSET));
+}
+
