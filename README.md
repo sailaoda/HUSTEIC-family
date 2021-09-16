@@ -21,6 +21,18 @@
 
 
 
+### 其他课程单列repo
+
+- [husteic_digital](https://github.com/sailaoda/husteic_digital.git)：华中科技大学电信学院数电课实验报告、代码、vivado文件。（个人版）3-8线译码器，步进器，数字钟，FPGA组合逻辑设计等。
+
+
+
+
+
+
+
+
+
 
 
 
